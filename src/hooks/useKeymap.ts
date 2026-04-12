@@ -197,6 +197,7 @@ export function useKeymap(
 				case "diff":
 				case "provider":
 				case "feedback":
+				case "export":
 				case "help":
 					if (key.escape) handlers.onBack?.();
 					else if (input === "g") handlers.onFirst?.();

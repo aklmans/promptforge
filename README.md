@@ -98,6 +98,7 @@ Useful TUI shortcuts:
 - `m` opens provider/model selection
 - `d` opens diff view
 - `f` opens feedback iteration
+- `x` opens export format picker
 - `?` opens help
 - `q` exits
 

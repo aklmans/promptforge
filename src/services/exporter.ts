@@ -1,10 +1,41 @@
 // Multi-format export for enhancement results
 
 import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { HistoryEntry } from "../types";
 
 export type ExportFormat = "md" | "txt" | "json" | "yaml";
 export const EXPORT_FORMATS: ExportFormat[] = ["md", "txt", "json", "yaml"];
+
+export const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
+	md: "Markdown",
+	txt: "Plain Text",
+	json: "JSON Metadata",
+	yaml: "YAML Template",
+};
+
+export const EXPORT_FORMAT_DESCRIPTIONS: Record<ExportFormat, string> = {
+	md: "Readable report with prompt, changes, scores, and metadata.",
+	txt: "Plain text export for shell tools and simple sharing.",
+	json: "Full structured payload with original prompt and metadata.",
+	yaml: "Structured template suitable for prompt workflows and automation.",
+};
+
+export function getExportFileExtension(format: ExportFormat): string {
+	return format;
+}
+
+export function buildExportOutputPath(
+	entry: HistoryEntry,
+	format: ExportFormat,
+	cwd = process.cwd(),
+	timestamp = Date.now(),
+): string {
+	return resolve(
+		cwd,
+		`promptforge-${entry.provider}-${timestamp}.${getExportFileExtension(format)}`,
+	);
+}
 
 export function isExportFormat(value: string): value is ExportFormat {
 	return EXPORT_FORMATS.includes(value as ExportFormat);

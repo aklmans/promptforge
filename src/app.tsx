@@ -1,13 +1,13 @@
 // Root Ink application component managing app state and routing
 
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
 import Fuse from "fuse.js";
 import { Box, Text, useStdout } from "ink";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import CommandPalette, { type CommandPaletteItem } from "./components/CommandPalette";
 import DiffView from "./components/DiffView";
+import ExportPicker from "./components/ExportPicker";
 import FeedbackForm from "./components/FeedbackForm";
 import Header from "./components/Header";
 import HelpView from "./components/HelpView";
@@ -29,6 +29,15 @@ import {
 	getDiffLayoutHeights,
 	getTopAlignedChangeBlockOffset,
 } from "./services/differ";
+import {
+	EXPORT_FORMATS,
+	EXPORT_FORMAT_DESCRIPTIONS,
+	EXPORT_FORMAT_LABELS,
+	type ExportFormat,
+	buildExportOutputPath,
+	exportEntry,
+	renderEntry,
+} from "./services/exporter";
 import type { AppConfig, AppView, EnhanceResult, HistoryEntry } from "./types";
 import { truncateText } from "./utils/text";
 
@@ -103,6 +112,9 @@ const App: React.FC = () => {
 	const [historySearchFocused, setHistorySearchFocused] = useState(false);
 	const [providerSearchQuery, setProviderSearchQuery] = useState("");
 	const [providerSearchFocused, setProviderSearchFocused] = useState(false);
+	const [exportSelectionIndex, setExportSelectionIndex] = useState(0);
+	const [exportReturnView, setExportReturnView] = useState<AppView>("main");
+	const [exportTimestamp, setExportTimestamp] = useState(() => Date.now());
 
 	const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const optimizer = useOptimizer();
@@ -162,7 +174,10 @@ const App: React.FC = () => {
 		return fuse.search(query).map((result) => result.item);
 	}, [history.entries, historySearchQuery]);
 	const selectedHistoryEntry = filteredHistoryEntries[historySelectionIndex] ?? null;
-	const activeEntry = view === "history" ? selectedHistoryEntry : history.current;
+	const activeEntry =
+		view === "history" || (view === "export" && exportReturnView === "history")
+			? selectedHistoryEntry
+			: history.current;
 	const currentResult = activeEntry?.result || optimizer.result;
 	const currentProviderName = config?.defaultProvider || "openai";
 	const currentProviderConfig = config?.providers[currentProviderName];
@@ -197,6 +212,11 @@ const App: React.FC = () => {
 	);
 	const historyPageSize = Math.max(1, Math.floor((viewportHeight - 7) / 3));
 	const providerPageSize = Math.max(1, Math.floor((viewportHeight - 4) / 2));
+	const currentExportFormat = EXPORT_FORMATS[exportSelectionIndex] ?? EXPORT_FORMATS[0];
+	const currentExportPath = activeEntry
+		? buildExportOutputPath(activeEntry, currentExportFormat, process.cwd(), exportTimestamp)
+		: "";
+	const exportPreview = activeEntry ? renderEntry(activeEntry, currentExportFormat) : "";
 
 	const focusDiffChangeBlock = (
 		changeIndex: number,
@@ -427,12 +447,48 @@ const App: React.FC = () => {
 				},
 				{
 					id: "export-current",
-					title: "Export Current Revision",
-					description: "Export the active revision to a Markdown file.",
+					title: "Open Export Picker",
+					description: "Open the export picker and save the active revision in the chosen format.",
 					shortcut: "x",
 					group: "Actions",
 					action: "export-current",
-					keywords: ["export", "markdown", "file"],
+					keywords: ["export", "markdown", "text", "json", "yaml", "file"],
+				},
+				{
+					id: "export-md",
+					title: "Export as Markdown",
+					description: "Export the active revision as a Markdown report.",
+					shortcut: "x then Enter",
+					group: "Export",
+					action: "export-md",
+					keywords: ["export", "markdown", "md"],
+				},
+				{
+					id: "export-txt",
+					title: "Export as Plain Text",
+					description: "Export the active revision as plain text.",
+					shortcut: "x then ↓",
+					group: "Export",
+					action: "export-txt",
+					keywords: ["export", "text", "txt"],
+				},
+				{
+					id: "export-json",
+					title: "Export as JSON",
+					description: "Export the active revision with full metadata as JSON.",
+					shortcut: "x then ↓↓",
+					group: "Export",
+					action: "export-json",
+					keywords: ["export", "json", "metadata"],
+				},
+				{
+					id: "export-yaml",
+					title: "Export as YAML",
+					description: "Export the active revision as a YAML workflow template.",
+					shortcut: "x then ↓↓↓",
+					group: "Export",
+					action: "export-yaml",
+					keywords: ["export", "yaml", "template"],
 				},
 			);
 		}
@@ -574,18 +630,31 @@ const App: React.FC = () => {
 	};
 
 	const handleExportCurrent = async () => {
+		openExportView();
+	};
+
+	const openExportView = () => {
+		if (!activeEntry) {
+			flashNotice("Run an enhancement before exporting");
+			return;
+		}
+
+		setExportSelectionIndex(0);
+		setExportTimestamp(Date.now());
+		setExportReturnView(view === "export" ? "main" : view);
+		setView("export");
+	};
+
+	const handleExportCurrentAs = async (format: ExportFormat) => {
 		if (!activeEntry) {
 			flashNotice("Run an enhancement before exporting");
 			return;
 		}
 
 		try {
-			const { exportEntry } = await import("./services/exporter");
-			const outputPath = resolve(
-				process.cwd(),
-				`promptforge-${activeEntry.provider}-${Date.now()}.md`,
-			);
-			await exportEntry(activeEntry, "md", outputPath);
+			const outputPath = buildExportOutputPath(activeEntry, format, process.cwd(), exportTimestamp);
+			await exportEntry(activeEntry, format, outputPath);
+			setView(exportReturnView === "export" ? "main" : exportReturnView);
 			flashNotice(`Exported ${outputPath}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -774,6 +843,19 @@ const App: React.FC = () => {
 				: "available models:\n- not declared",
 		].join("\n");
 	}, [selectedProviderConfig, selectedProviderName]);
+	const exportDetailsText = useMemo(() => {
+		if (!activeEntry) {
+			return "No active revision selected.";
+		}
+
+		return [
+			`format: ${currentExportFormat}`,
+			`label: ${EXPORT_FORMAT_LABELS[currentExportFormat]}`,
+			`path: ${currentExportPath}`,
+			"",
+			EXPORT_FORMAT_DESCRIPTIONS[currentExportFormat],
+		].join("\n");
+	}, [activeEntry, currentExportFormat, currentExportPath]);
 
 	const keymapHandlers = {
 		onExit: () => process.exit(0),
@@ -828,7 +910,12 @@ const App: React.FC = () => {
 			void handleCopyCurrent();
 		},
 		onExport: () => {
-			void handleExportCurrent();
+			if (view === "export") {
+				void handleExportCurrentAs(currentExportFormat);
+				return;
+			}
+
+			handleExportCurrent();
 		},
 		onProvider: () => {
 			if (!config) return;
@@ -842,6 +929,8 @@ const App: React.FC = () => {
 				setHistorySelectionIndex((prev) => Math.max(0, prev - 1));
 			} else if (view === "provider") {
 				setProviderSelectionIndex((prev) => Math.max(0, prev - 1));
+			} else if (view === "export") {
+				setExportSelectionIndex((prev) => Math.max(0, prev - 1));
 			} else if (view === "diff") {
 				if (diffFocusArea === "overview" && diffChangeBlocks.length > 0) {
 					focusDiffChangeBlock(Math.max(0, activeDiffChangeIndex - 1));
@@ -858,6 +947,10 @@ const App: React.FC = () => {
 			} else if (view === "provider") {
 				setProviderSelectionIndex((prev) =>
 					Math.min(Math.max(filteredProviderNames.length - 1, 0), prev + 1),
+				);
+			} else if (view === "export") {
+				setExportSelectionIndex((prev) =>
+					Math.min(Math.max(EXPORT_FORMATS.length - 1, 0), prev + 1),
 				);
 			} else if (view === "diff") {
 				if (diffFocusArea === "overview" && diffChangeBlocks.length > 0) {
@@ -918,6 +1011,8 @@ const App: React.FC = () => {
 				setHistorySelectionIndex(0);
 			} else if (view === "provider") {
 				setProviderSelectionIndex(0);
+			} else if (view === "export") {
+				setExportSelectionIndex(0);
 			} else if (view === "diff") {
 				if (diffFocusArea === "overview" && diffChangeBlocks.length > 0) {
 					focusDiffChangeBlock(0);
@@ -931,6 +1026,8 @@ const App: React.FC = () => {
 				setHistorySelectionIndex(Math.max(filteredHistoryEntries.length - 1, 0));
 			} else if (view === "provider") {
 				setProviderSelectionIndex(Math.max(filteredProviderNames.length - 1, 0));
+			} else if (view === "export") {
+				setExportSelectionIndex(Math.max(EXPORT_FORMATS.length - 1, 0));
 			} else if (view === "diff") {
 				if (diffFocusArea === "overview" && diffChangeBlocks.length > 0) {
 					focusDiffChangeBlock(diffChangeBlocks.length - 1);
@@ -966,6 +1063,8 @@ const App: React.FC = () => {
 				});
 				setProviderSearchFocused(false);
 				setView("main");
+			} else if (view === "export") {
+				void handleExportCurrentAs(currentExportFormat);
 			} else if (view === "diff" && diffFocusArea === "overview") {
 				focusDiffChangeBlock(activeDiffChangeIndex, "top");
 				setDiffFocusArea("patch");
@@ -1023,6 +1122,9 @@ const App: React.FC = () => {
 			} else if (view === "diff") {
 				setDiffFocusArea("patch");
 				setDiffJumpInput("");
+			} else if (view === "export") {
+				setView(exportReturnView === "export" ? "main" : exportReturnView);
+				return;
 			}
 			setView("main");
 		},
@@ -1100,6 +1202,18 @@ const App: React.FC = () => {
 				break;
 			case "export-current":
 				keymapHandlers.onExport?.();
+				break;
+			case "export-md":
+				void handleExportCurrentAs("md");
+				break;
+			case "export-txt":
+				void handleExportCurrentAs("txt");
+				break;
+			case "export-json":
+				void handleExportCurrentAs("json");
+				break;
+			case "export-yaml":
+				void handleExportCurrentAs("yaml");
 				break;
 			case "toggle-diff-focus":
 				keymapHandlers.onToggleDiffFocus?.();
@@ -1657,6 +1771,85 @@ const App: React.FC = () => {
 		);
 	};
 
+	const renderExportView = () => {
+		if (!activeEntry) {
+			return (
+				<PromptPanel
+					title="Export"
+					content="Run an enhancement before exporting."
+					height={viewportHeight}
+					borderColor="yellow"
+					contentWidth={fullContentWidth}
+				/>
+			);
+		}
+
+		const exportFormats = EXPORT_FORMATS.map((format) => ({
+			id: format,
+			label: `${EXPORT_FORMAT_LABELS[format]} (.${format})`,
+			description: EXPORT_FORMAT_DESCRIPTIONS[format],
+		}));
+
+		if (useWideSidePanels) {
+			return (
+				<Box width="100%" height={viewportHeight}>
+					<Box width={sideWidth} paddingRight={1}>
+						<ExportPicker
+							formats={exportFormats}
+							selectedFormat={currentExportFormat}
+							height={viewportHeight}
+							contentWidth={sidePanelWidth}
+						/>
+					</Box>
+					<Box flexGrow={1} flexDirection="column">
+						<PromptPanel
+							title="Export Details"
+							content={exportDetailsText}
+							height={stackedHeight}
+							borderColor="cyan"
+							contentWidth={mainPanelWidth}
+						/>
+						<Box marginTop={1}>
+							<PromptPanel
+								title={`Preview · ${EXPORT_FORMAT_LABELS[currentExportFormat]}`}
+								content={exportPreview}
+								height={viewportHeight - stackedHeight - 1}
+								contentWidth={mainPanelWidth}
+							/>
+						</Box>
+					</Box>
+				</Box>
+			);
+		}
+
+		const { first: pickerHeight, second: previewHeight } = splitHeights(
+			viewportHeight,
+			Math.floor(viewportHeight * 0.36),
+			5,
+			5,
+		);
+
+		return (
+			<Box width="100%" height={viewportHeight} flexDirection="column">
+				<Box marginBottom={1}>
+					<ExportPicker
+						formats={exportFormats}
+						selectedFormat={currentExportFormat}
+						height={pickerHeight}
+						contentWidth={fullContentWidth}
+					/>
+				</Box>
+				<PromptPanel
+					title={`Preview · ${EXPORT_FORMAT_LABELS[currentExportFormat]}`}
+					content={`${exportDetailsText}\n\n${exportPreview}`}
+					height={previewHeight}
+					borderColor="cyan"
+					contentWidth={fullContentWidth}
+				/>
+			</Box>
+		);
+	};
+
 	const renderContent = () => {
 		switch (view) {
 			case "history":
@@ -1665,6 +1858,8 @@ const App: React.FC = () => {
 				return renderProviderView();
 			case "feedback":
 				return renderFeedbackView();
+			case "export":
+				return renderExportView();
 			case "diff":
 				return (
 					<DiffView

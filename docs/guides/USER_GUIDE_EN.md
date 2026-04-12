@@ -208,6 +208,12 @@ Best practice:
 - Change one thing at a time
 - Use small, clear iterations
 
+When exporting from the TUI:
+
+- press `x` to open the export picker
+- choose `md`, `txt`, `json`, or `yaml`
+- press `Enter` to export or `ESC` to cancel
+
 ## 11. Choosing Enhancement Levels
 
 ### `light`

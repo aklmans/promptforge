@@ -49,7 +49,15 @@ export interface HistoryEntry {
 	tags: string[];
 }
 
-export type AppView = "main" | "diff" | "history" | "provider" | "feedback" | "help" | "onboarding";
+export type AppView =
+	| "main"
+	| "diff"
+	| "history"
+	| "provider"
+	| "feedback"
+	| "help"
+	| "onboarding"
+	| "export";
 export type AppStatus = "idle" | "thinking" | "streaming" | "done" | "error";
 
 export interface StreamChunk {

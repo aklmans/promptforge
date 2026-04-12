@@ -70,6 +70,8 @@ const StatusBar: React.FC<StatusBarProps> = ({
 					: `: / Ctrl+K palette · a ${diffAlignMode} · digits↵ jump · [ ] / n/N`;
 			case "feedback":
 				return "Enter refine · ESC back";
+			case "export":
+				return "↑↓ choose format · Enter export · ESC back";
 			case "help":
 				return "ESC back";
 			default:
