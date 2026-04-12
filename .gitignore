@@ -1,0 +1,24 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.tgz
+.env
+.env.*
+!.env.example
+.env.local
+.DS_Store
+*.log
+
+# Local PromptForge config can contain API keys
+promptforge.config.json
+promptforge.config.*.json
+.promptforgerc
+.promptforgerc.json
+.promptforgerc.*
+.promptforge/
+
+# Local tool/editor state
+.claude/settings.local.json
+*.local.json
+.npm-cache/
