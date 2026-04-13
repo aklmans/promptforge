@@ -17,7 +17,7 @@ _Based on `ROADMAP.md` · Focus milestone: `R1 / v0.2`_
 | --- | --- | --- | --- | --- |
 | PF-001 | P0 | CLI 支持 `--format` | 无 | 下一步 |
 | PF-002 | P0 | TUI 导出格式选择 | PF-001 | 下一步 |
-| PF-003 | P0 | Provider + Model 选择器补齐 | 无 | 下一步 |
+| PF-003 | P0 | Provider + Model 选择器补齐 | 无 | 已完成 |
 | PF-004 | P0 | Onboarding 多 Provider + env-first | PF-003 | 下一步 |
 | PF-005 | P1 | `--preset` 与领域增强策略 | 无 | 紧随其后 |
 | PF-006 | P1 | 文档与真实功能对齐 | PF-001 ~ PF-005 | 紧随其后 |
@@ -27,10 +27,9 @@ _Based on `ROADMAP.md` · Focus milestone: `R1 / v0.2`_
 
 1. 先做 `PF-001`，补齐 CLI 导出闭环
 2. 再做 `PF-002`，让 TUI 与 CLI 能力一致
-3. 接着做 `PF-003`，让 Provider 切换真正完整
-4. 然后做 `PF-004`，补齐新用户首次使用体验
-5. 再做 `PF-005`，落地预设系统
-6. 最后做 `PF-006` 和 `PF-007`，收口文档与回归
+3. 然后做 `PF-004`，补齐新用户首次使用体验
+4. 再做 `PF-005`，落地预设系统
+5. 最后做 `PF-006` 和 `PF-007`，收口文档与回归
 
 ## PF-001 · CLI 支持 `--format`
 
@@ -117,9 +116,9 @@ _Based on `ROADMAP.md` · Focus milestone: `R1 / v0.2`_
 
 **当前现状**
 
-- `src/components/ProviderPicker.tsx` 只展示 provider 列表
-- `src/config.ts` 已支持 `models`
-- `src/app.tsx` 切换时仅更新 `defaultProvider` / 推导 `defaultModel`
+- 已支持在 TUI 中按 `provider + model` 组合项选择
+- 已支持 provider 名、model 名、`baseURL` 搜索
+- 已支持将选择结果持久化到配置文件
 
 **建议范围**
 
@@ -135,17 +134,17 @@ _Based on `ROADMAP.md` · Focus milestone: `R1 / v0.2`_
 - 选择后同时更新 `defaultProvider` 和 `defaultModel`
 - 搜索要支持 provider 名、model 名、baseURL
 
-**完成标准**
+**完成结果**
 
 - 用户可在 TUI 中切换到指定 provider + model
 - Header 与 Inspector 正确显示当前 model
 - 重新启动后选择结果仍生效
 
-**测试建议**
+**已补测试**
 
 - 配置解析测试
-- 选择行为测试
-- 搜索命中 model 测试
+- provider option 构建测试
+- 搜索命中 model / baseURL 测试
 
 ## PF-004 · Onboarding 多 Provider + env-first
 

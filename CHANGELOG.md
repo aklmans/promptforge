@@ -19,5 +19,5 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 - Improved CLI argument validation and runtime error messages
 - Hardened config parsing and provider/model resolution errors
+- Completed provider + model selection in the TUI, including search by model ID and base URL
 - Tightened npm publish preparation and local config ignore rules
-

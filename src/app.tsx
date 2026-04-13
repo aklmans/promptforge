@@ -44,6 +44,11 @@ import {
 	exportEntry,
 	renderEntry,
 } from "./services/exporter";
+import {
+	buildProviderOptionId,
+	buildProviderOptions,
+	filterProviderOptions,
+} from "./services/providers";
 import type { AppConfig, AppView, EnhanceResult, HistoryEntry } from "./types";
 import { truncateText } from "./utils/text";
 
@@ -74,10 +79,6 @@ function splitHeights(
 	}
 
 	return { first, second };
-}
-
-function buildProviderOptionId(provider: string, model: string): string {
-	return `${provider}:${model}`;
 }
 
 const App: React.FC = () => {
@@ -139,37 +140,14 @@ const App: React.FC = () => {
 		currentProviderConfig,
 	);
 
-	const providerOptions = useMemo<ProviderOption[]>(() => {
-		if (!config) {
-			return [];
-		}
-
-		return Object.entries(config.providers).flatMap(([providerName, providerConfig]) => {
-			const providerDefaultModel = resolveProviderModel(config, providerConfig);
-
-			return getProviderModelChoices(config, providerConfig).map((model) => ({
-				id: buildProviderOptionId(providerName, model),
-				provider: providerName,
-				model,
-				baseURL: providerConfig.baseURL,
-				isDefaultModel: model === providerDefaultModel,
-			}));
-		});
-	}, [config]);
-	const filteredProviderOptions = useMemo(() => {
-		const query = providerSearchQuery.trim();
-		if (!query) {
-			return providerOptions;
-		}
-
-		const fuse = new Fuse(providerOptions, {
-			includeScore: true,
-			threshold: 0.35,
-			keys: ["provider", "model", "baseURL", "id"],
-		});
-
-		return fuse.search(query).map((result) => result.item);
-	}, [providerOptions, providerSearchQuery]);
+	const providerOptions = useMemo<ProviderOption[]>(
+		() => (config ? buildProviderOptions(config) : []),
+		[config],
+	);
+	const filteredProviderOptions = useMemo(
+		() => filterProviderOptions(providerOptions, providerSearchQuery),
+		[providerOptions, providerSearchQuery],
+	);
 	const activeProviderOptionId = buildProviderOptionId(currentProviderName, currentModel);
 	const selectedProviderOption =
 		filteredProviderOptions[providerSelectionIndex] ||

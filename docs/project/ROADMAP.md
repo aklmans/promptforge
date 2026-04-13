@@ -29,7 +29,7 @@ _Last updated: 2026-04-12_
 ### 部分完成
 
 - 配置系统：已支持 JSON 与 `env:VAR_NAME`，但还不支持 YAML / TOML，也未真正做到 zero-config 的多 Provider 引导
-- 多 Provider：已支持 OpenAI-compatible base URL，但 TUI 目前主要是“切换 provider”，还没有完整的 model picker
+- 多 Provider：已支持 OpenAI-compatible base URL，TUI 已支持 provider + model 组合选择；Onboarding 仍待扩展
 - 评分系统：结果中已有 score 字段，但尚未做成右侧雷达图与评分解释面板
 - 导出能力：底层支持多格式，但当前 TUI 导出入口仍固定输出 Markdown
 - 历史系统：已有线性历史，但还没有树状分支、Undo、Pin、Tag、项目分组
@@ -64,7 +64,7 @@ _Last updated: 2026-04-12_
 | TUI | Claude Code 风格沉浸体验 | 已有骨架与主流程 | 需继续打磨 |
 | Diff | 变更可视化 + 导航 | 已有块级导航 | 还缺词级 diff |
 | 评分 | 多维评分 + 雷达图 | 仅有分数字段 | 半成品 |
-| Provider | 多 Provider + 模型切换 | Provider 有，模型切换不完整 | 半成品 |
+| Provider | 多 Provider + 模型切换 | TUI 已支持 provider + model 选择，首次引导仍不完整 | 半成品 |
 | 配置 | Zero-config + 多格式配置 | JSON 可用，引导较弱 | 半成品 |
 | 历史库 | Pin / Tag / 项目分组 / 模板 | 仅有基础历史 | 未完成 |
 | 导出 | md/txt/json/xml/yaml | 缺 xml，UI 未暴露完整格式 | 半成品 |
@@ -93,7 +93,6 @@ _Last updated: 2026-04-12_
 - CLI 增加 `--format md|txt|json|yaml`
 - CLI 增加 `--preset coding|writing|data-analysis|agent|chat`
 - TUI 导出支持格式选择，而不是固定导出 `.md`
-- Provider 选择器补齐 model 选择
 - Onboarding 扩展到 `openai / claude / kimi / deepseek / ollama / custom`
 - 配置保存改为“环境变量优先”，避免引导用户默认明文保存 API Key
 - 文档与真实功能对齐，显式标注已实现 / 计划中能力
