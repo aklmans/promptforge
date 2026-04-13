@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { ConfigError, parseConfigContent } from "../../src/config";
+import { ConfigError, getProviderModelChoices, parseConfigContent } from "../../src/config";
 
 const envKey = "PROMPTFORGE_TEST_API_KEY";
 const previousEnvValue = process.env[envKey];
@@ -59,5 +59,40 @@ describe("parseConfigContent", () => {
 				"missing-provider.json",
 			),
 		).toThrow(/Default provider/);
+	});
+});
+
+describe("getProviderModelChoices", () => {
+	it("deduplicates the resolved default model with declared models", () => {
+		const choices = getProviderModelChoices(
+			{ defaultModel: "gpt-5.4" },
+			{
+				defaultModel: "gpt-5.4",
+				models: ["gpt-5.4", "gpt-5.3-codex", "gpt-5.4"],
+			},
+		);
+
+		expect(choices).toEqual(["gpt-5.4", "gpt-5.3-codex"]);
+	});
+
+	it("keeps a legacy model field as the resolved default model", () => {
+		const config = parseConfigContent(
+			JSON.stringify({
+				defaultProvider: "codexzh",
+				providers: {
+					codexzh: {
+						baseURL: "https://api.example.com/v1",
+						model: "gpt-5.4",
+						models: ["gpt-5.4", "gpt-5.3-codex"],
+						apiKey: "test-key",
+					},
+				},
+			}),
+		);
+
+		expect(getProviderModelChoices(config, config.providers.codexzh)).toEqual([
+			"gpt-5.4",
+			"gpt-5.3-codex",
+		]);
 	});
 });

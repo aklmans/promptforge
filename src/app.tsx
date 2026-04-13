@@ -16,9 +16,15 @@ import OnboardingWizard from "./components/OnboardingWizard";
 import Panel from "./components/Panel";
 import PromptInput from "./components/PromptInput";
 import PromptPanel from "./components/PromptPanel";
-import ProviderPicker from "./components/ProviderPicker";
+import ProviderPicker, { type ProviderOption } from "./components/ProviderPicker";
 import StatusBar from "./components/StatusBar";
-import { getConfigPath, loadConfigWithPath, resolveProviderModel, saveConfig } from "./config";
+import {
+	getConfigPath,
+	getProviderModelChoices,
+	loadConfigWithPath,
+	resolveProviderModel,
+	saveConfig,
+} from "./config";
 import { useHistory } from "./hooks/useHistory";
 import { useKeymap } from "./hooks/useKeymap";
 import { useOptimizer } from "./hooks/useOptimizer";
@@ -68,6 +74,10 @@ function splitHeights(
 	}
 
 	return { first, second };
+}
+
+function buildProviderOptionId(provider: string, model: string): string {
+	return `${provider}:${model}`;
 }
 
 const App: React.FC = () => {
@@ -122,34 +132,52 @@ const App: React.FC = () => {
 	const commandPaletteHeight = Math.max(9, Math.min(14, Math.floor(contentHeight * 0.42)));
 	const viewportHeight = contentHeight;
 	const stackedHeight = Math.max(7, Math.floor((viewportHeight - 1) / 2));
+	const currentProviderName = config?.defaultProvider || "openai";
+	const currentProviderConfig = config?.providers[currentProviderName];
+	const currentModel = resolveProviderModel(
+		{ defaultModel: config?.defaultModel },
+		currentProviderConfig,
+	);
 
-	const providerNames = config ? Object.keys(config.providers) : [];
-	const filteredProviderNames = useMemo(() => {
-		const query = providerSearchQuery.trim();
-		if (!config || !query) {
-			return providerNames;
+	const providerOptions = useMemo<ProviderOption[]>(() => {
+		if (!config) {
+			return [];
 		}
 
-		const providerEntries = providerNames.map((name) => ({
-			name,
-			baseURL: config.providers[name]?.baseURL ?? "",
-			defaultModel: config.providers[name]?.defaultModel ?? "",
-			models: config.providers[name]?.models ?? [],
-		}));
+		return Object.entries(config.providers).flatMap(([providerName, providerConfig]) => {
+			const providerDefaultModel = resolveProviderModel(config, providerConfig);
 
-		const fuse = new Fuse(providerEntries, {
+			return getProviderModelChoices(config, providerConfig).map((model) => ({
+				id: buildProviderOptionId(providerName, model),
+				provider: providerName,
+				model,
+				baseURL: providerConfig.baseURL,
+				isDefaultModel: model === providerDefaultModel,
+			}));
+		});
+	}, [config]);
+	const filteredProviderOptions = useMemo(() => {
+		const query = providerSearchQuery.trim();
+		if (!query) {
+			return providerOptions;
+		}
+
+		const fuse = new Fuse(providerOptions, {
 			includeScore: true,
 			threshold: 0.35,
-			keys: ["name", "baseURL", "defaultModel", "models"],
+			keys: ["provider", "model", "baseURL", "id"],
 		});
 
-		return fuse.search(query).map((result) => result.item.name);
-	}, [config, providerNames, providerSearchQuery]);
-	const selectedProviderName =
-		filteredProviderNames[providerSelectionIndex] ||
-		(view === "provider" ? "" : config?.defaultProvider || "");
-	const selectedProviderConfig = selectedProviderName
-		? config?.providers[selectedProviderName]
+		return fuse.search(query).map((result) => result.item);
+	}, [providerOptions, providerSearchQuery]);
+	const activeProviderOptionId = buildProviderOptionId(currentProviderName, currentModel);
+	const selectedProviderOption =
+		filteredProviderOptions[providerSelectionIndex] ||
+		(view === "provider"
+			? null
+			: providerOptions.find((option) => option.id === activeProviderOptionId) || null);
+	const selectedProviderConfig = selectedProviderOption
+		? config?.providers[selectedProviderOption.provider]
 		: undefined;
 	const filteredHistoryEntries = useMemo(() => {
 		const query = historySearchQuery.trim();
@@ -179,12 +207,6 @@ const App: React.FC = () => {
 			? selectedHistoryEntry
 			: history.current;
 	const currentResult = activeEntry?.result || optimizer.result;
-	const currentProviderName = config?.defaultProvider || "openai";
-	const currentProviderConfig = config?.providers[currentProviderName];
-	const currentModel = resolveProviderModel(
-		{ defaultModel: config?.defaultModel },
-		currentProviderConfig,
-	);
 	const isTextInputFocused =
 		(view === "main" && inputActive && mainInputFocused) ||
 		view === "feedback" ||
@@ -260,9 +282,9 @@ const App: React.FC = () => {
 
 	useEffect(() => {
 		setProviderSelectionIndex((previousIndex) =>
-			Math.min(previousIndex, Math.max(filteredProviderNames.length - 1, 0)),
+			Math.min(previousIndex, Math.max(filteredProviderOptions.length - 1, 0)),
 		);
-	}, [filteredProviderNames.length]);
+	}, [filteredProviderOptions.length]);
 
 	useEffect(() => {
 		setDiffScrollOffset((previousOffset) => Math.min(previousOffset, maxDiffScrollOffset));
@@ -828,21 +850,35 @@ const App: React.FC = () => {
 	}, [history.loaded, selectedHistoryEntry]);
 
 	const providerDetailsText = useMemo(() => {
-		if (!selectedProviderConfig) {
+		if (!config || !selectedProviderOption || !selectedProviderConfig) {
 			return "No provider selected.";
 		}
 
+		const availableModels = getProviderModelChoices(config, selectedProviderConfig);
+		const providerDefaultModel = resolveProviderModel(config, selectedProviderConfig);
+
 		return [
-			`name: ${selectedProviderName}`,
+			`name: ${selectedProviderOption.provider}`,
+			`model: ${selectedProviderOption.model}`,
 			`baseURL: ${selectedProviderConfig.baseURL}`,
-			`default model: ${selectedProviderConfig.defaultModel || "gpt-4o"}`,
+			`default model: ${providerDefaultModel}`,
 			`api key: ${selectedProviderConfig.apiKey ? "configured" : "missing"}`,
 			"",
-			selectedProviderConfig.models?.length
-				? `available models:\n- ${selectedProviderConfig.models.join("\n- ")}`
-				: "available models:\n- not declared",
+			"available models:",
+			...availableModels.map((model) => {
+				if (model === selectedProviderOption.model && model === providerDefaultModel) {
+					return `- ${model} (selected, default)`;
+				}
+				if (model === selectedProviderOption.model) {
+					return `- ${model} (selected)`;
+				}
+				if (model === providerDefaultModel) {
+					return `- ${model} (default)`;
+				}
+				return `- ${model}`;
+			}),
 		].join("\n");
-	}, [selectedProviderConfig, selectedProviderName]);
+	}, [config, selectedProviderConfig, selectedProviderOption]);
 	const exportDetailsText = useMemo(() => {
 		if (!activeEntry) {
 			return "No active revision selected.";
@@ -919,10 +955,16 @@ const App: React.FC = () => {
 		},
 		onProvider: () => {
 			if (!config) return;
-			const matchedIndex = filteredProviderNames.indexOf(config.defaultProvider);
-			setProviderSelectionIndex(Math.max(0, matchedIndex));
+			const nextView = view === "provider" ? "main" : "provider";
+			if (nextView === "provider") {
+				const matchedIndex = providerOptions.findIndex(
+					(option) => option.id === activeProviderOptionId,
+				);
+				setProviderSearchQuery("");
+				setProviderSelectionIndex(Math.max(0, matchedIndex));
+			}
 			setProviderSearchFocused(false);
-			setView(view === "provider" ? "main" : "provider");
+			setView(nextView);
 		},
 		onNavigateUp: () => {
 			if (view === "history") {
@@ -946,7 +988,7 @@ const App: React.FC = () => {
 				);
 			} else if (view === "provider") {
 				setProviderSelectionIndex((prev) =>
-					Math.min(Math.max(filteredProviderNames.length - 1, 0), prev + 1),
+					Math.min(Math.max(filteredProviderOptions.length - 1, 0), prev + 1),
 				);
 			} else if (view === "export") {
 				setExportSelectionIndex((prev) =>
@@ -994,7 +1036,7 @@ const App: React.FC = () => {
 				);
 			} else if (view === "provider") {
 				setProviderSelectionIndex((prev) =>
-					Math.min(Math.max(filteredProviderNames.length - 1, 0), prev + providerPageSize),
+					Math.min(Math.max(filteredProviderOptions.length - 1, 0), prev + providerPageSize),
 				);
 			} else if (view === "diff") {
 				if (diffFocusArea === "overview" && diffChangeBlocks.length > 0) {
@@ -1025,7 +1067,7 @@ const App: React.FC = () => {
 			if (view === "history") {
 				setHistorySelectionIndex(Math.max(filteredHistoryEntries.length - 1, 0));
 			} else if (view === "provider") {
-				setProviderSelectionIndex(Math.max(filteredProviderNames.length - 1, 0));
+				setProviderSelectionIndex(Math.max(filteredProviderOptions.length - 1, 0));
 			} else if (view === "export") {
 				setExportSelectionIndex(Math.max(EXPORT_FORMATS.length - 1, 0));
 			} else if (view === "diff") {
@@ -1055,11 +1097,11 @@ const App: React.FC = () => {
 				setHistorySearchFocused(false);
 				setView("main");
 				flashNotice(`Loaded revision v${selectedHistoryEntry.version}`);
-			} else if (view === "provider" && config && selectedProviderName) {
+			} else if (view === "provider" && config && selectedProviderOption) {
 				void handleConfigChange({
 					...config,
-					defaultProvider: selectedProviderName,
-					defaultModel: resolveProviderModel(config, config.providers[selectedProviderName]),
+					defaultProvider: selectedProviderOption.provider,
+					defaultModel: selectedProviderOption.model,
 				});
 				setProviderSearchFocused(false);
 				setView("main");
@@ -1586,9 +1628,9 @@ const App: React.FC = () => {
 				<Box width="100%" height={viewportHeight}>
 					<Box width={sideWidth} paddingRight={1}>
 						<ProviderPicker
-							providers={filteredProviderNames}
-							selectedProvider={selectedProviderName}
-							activeProvider={config.defaultProvider}
+							options={filteredProviderOptions}
+							selectedOptionId={selectedProviderOption?.id ?? ""}
+							activeOptionId={activeProviderOptionId}
 							height={viewportHeight}
 							contentWidth={sidePanelWidth}
 							searchQuery={providerSearchQuery}
@@ -1626,9 +1668,9 @@ const App: React.FC = () => {
 			<Box width="100%" height={viewportHeight} flexDirection="column">
 				<Box marginBottom={1}>
 					<ProviderPicker
-						providers={filteredProviderNames}
-						selectedProvider={selectedProviderName}
-						activeProvider={config.defaultProvider}
+						options={filteredProviderOptions}
+						selectedOptionId={selectedProviderOption?.id ?? ""}
+						activeOptionId={activeProviderOptionId}
 						height={pickerHeight}
 						contentWidth={fullContentWidth}
 						searchQuery={providerSearchQuery}

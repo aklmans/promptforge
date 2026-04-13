@@ -96,6 +96,7 @@ Useful TUI shortcuts:
 - `Ctrl+K` or `:` opens the command palette
 - `h` opens history
 - `m` opens provider/model selection
+- provider search matches provider name, model ID, and `baseURL`
 - `d` opens diff view
 - `f` opens feedback iteration
 - `x` opens export format picker

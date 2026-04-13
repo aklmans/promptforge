@@ -4,10 +4,18 @@ import type React from "react";
 import { getWindowRange, truncateText } from "../utils/text";
 import Panel from "./Panel";
 
+export interface ProviderOption {
+	id: string;
+	provider: string;
+	model: string;
+	baseURL: string;
+	isDefaultModel: boolean;
+}
+
 interface ProviderPickerProps {
-	providers: string[];
-	selectedProvider: string;
-	activeProvider: string;
+	options: ProviderOption[];
+	selectedOptionId: string;
+	activeOptionId: string;
 	height?: number;
 	contentWidth?: number;
 	searchQuery?: string;
@@ -17,9 +25,9 @@ interface ProviderPickerProps {
 }
 
 const ProviderPicker: React.FC<ProviderPickerProps> = ({
-	providers,
-	selectedProvider,
-	activeProvider,
+	options,
+	selectedOptionId,
+	activeOptionId,
 	height = 18,
 	contentWidth = 26,
 	searchQuery = "",
@@ -27,22 +35,25 @@ const ProviderPicker: React.FC<ProviderPickerProps> = ({
 	onSearchChange,
 	onSearchSubmit,
 }) => {
-	const selectedIndex = Math.max(0, providers.indexOf(selectedProvider));
+	const selectedIndex = Math.max(
+		0,
+		options.findIndex((option) => option.id === selectedOptionId),
+	);
 	const visibleCount = Math.max(1, Math.floor((height - 7) / 2));
-	const { start, end } = getWindowRange(providers.length, selectedIndex, visibleCount);
-	const visibleProviders = providers.slice(start, end);
+	const { start, end } = getWindowRange(options.length, selectedIndex, visibleCount);
+	const visibleOptions = options.slice(start, end);
 	const footer =
-		providers.length === 0
+		options.length === 0
 			? searchQuery
 				? "0 match"
-				: "no providers"
+				: "no options"
 			: searchQuery
-				? `${end}/${providers.length} match`
-				: `${end}/${providers.length}`;
+				? `${end}/${options.length} match`
+				: `${end}/${options.length}`;
 
 	return (
 		<Panel
-			title="Providers"
+			title="Providers & Models"
 			footer={footer}
 			height={height}
 			borderColor="magenta"
@@ -58,20 +69,29 @@ const ProviderPicker: React.FC<ProviderPickerProps> = ({
 					focus={searchFocused}
 				/>
 			</Box>
-			{providers.length === 0 ? (
+			{options.length === 0 ? (
 				<Text dimColor>{searchQuery ? "No matching providers." : "No providers configured."}</Text>
 			) : (
-				visibleProviders.map((provider) => (
-					<Box key={provider} flexDirection="column">
+				visibleOptions.map((option) => (
+					<Box key={option.id} flexDirection="column">
 						<Text
-							color={provider === selectedProvider ? "green" : undefined}
-							inverse={provider === selectedProvider}
+							color={option.id === selectedOptionId ? "green" : undefined}
+							inverse={option.id === selectedOptionId}
 						>
-							{`${provider === selectedProvider ? "›" : " "} ${truncateText(provider, contentWidth)}`}
+							{`${option.id === selectedOptionId ? "›" : " "} ${truncateText(
+								`${option.provider} · ${option.model}`,
+								contentWidth,
+							)}`}
 						</Text>
 						<Text dimColor>
 							{truncateText(
-								provider === activeProvider ? "current default" : "available",
+								option.id === activeOptionId
+									? option.isDefaultModel
+										? "current default"
+										: "current active"
+									: option.isDefaultModel
+										? "provider default"
+										: option.baseURL,
 								contentWidth,
 							)}
 						</Text>
@@ -80,7 +100,7 @@ const ProviderPicker: React.FC<ProviderPickerProps> = ({
 			)}
 			<Text
 				dimColor
-			>{`active: ${truncateText(activeProvider, Math.max(10, contentWidth - 8))}`}</Text>
+			>{`active: ${truncateText(activeOptionId, Math.max(10, contentWidth - 8))}`}</Text>
 		</Panel>
 	);
 };

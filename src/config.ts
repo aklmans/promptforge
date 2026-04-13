@@ -202,3 +202,21 @@ export function resolveProviderModel(
 ): string {
 	return provider?.defaultModel || config.defaultModel || "gpt-4o";
 }
+
+export function getProviderModelChoices(
+	config: { defaultModel?: string },
+	provider?: Pick<ProviderConfig, "defaultModel" | "models">,
+): string[] {
+	const primaryModel = resolveProviderModel(config, provider);
+	const declaredModels = provider?.models ?? [];
+	const deduped = new Set<string>();
+
+	deduped.add(primaryModel);
+	for (const model of declaredModels) {
+		if (model.trim()) {
+			deduped.add(model);
+		}
+	}
+
+	return [...deduped];
+}

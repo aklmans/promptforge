@@ -234,10 +234,10 @@ TUI 适合你边看、边改、边比对。
 
 ### 8.4 Provider 视图
 
-- `/`：搜索 provider
-- `↑ / ↓`：切换 provider
+- `/`：搜索 provider / model / baseURL
+- `↑ / ↓`：切换 provider + model 组合项
 - `PgUp / PgDn`：翻页
-- `Enter`：选中 provider
+- `Enter`：选中当前 provider + model
 - `ESC`：返回主界面
 
 ### 8.5 Diff 视图

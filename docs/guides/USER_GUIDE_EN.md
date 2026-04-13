@@ -158,7 +158,8 @@ Main view:
 - `ESC` switches to command mode
 - `i` returns to input mode
 - `h` opens history
-- `m` opens provider selection
+- `m` opens provider/model selection
+- `/` searches provider name, model ID, and base URL in the provider view
 - `d` opens diff view
 - `f` opens feedback
 - `c` copies the result
